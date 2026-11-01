@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  judge-dredd-bot:
+    build: .
+    container_name: judge_dredd_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Сохраняем базу данных SQLite на хост-машине
+      - ./data:/app/data
+      # Опционально: сохраняем лог-файлы
+      - ./bot.log:/app/bot.log

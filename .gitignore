@@ -1,0 +1,41 @@
+# Секреты и токены (КРИТИЧЕСКИ ВАЖНО)
+.env
+.env.*
+!.env.example
+
+# База данных и локальные данные
+data/
+*.db
+*.sqlite
+*.sqlite3
+court.db
+
+# Логи
+*.log
+bot.log
+
+# Временные бэкапы
+backup_social_credit/
+
+# Python кэш и компиляция
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Системные файлы и IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
