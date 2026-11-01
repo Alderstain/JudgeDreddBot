@@ -80,8 +80,7 @@ class LLMAdvocate:
         models_to_try = [
             "gemini-3.8-flash",
             "gemini-3.5-flash-lite",
-            "gemini-3.5-flash",
-            "gemini-3.5-pro"
+            "gemini-3.5-flash"
         ]
 
         for model_name in models_to_try:
@@ -98,8 +97,31 @@ class LLMAdvocate:
                             temperature=0.7
                         )
                     )
+
+                    # 1. Если SDK вернул уже распарсенный объект
+                    if getattr(response, "parsed", None):
+                        if isinstance(response.parsed, AdvocateSpeechResult):
+                            return response.parsed
+                        if isinstance(response.parsed, dict):
+                            return AdvocateSpeechResult(**response.parsed)
+
+                    # 2. Безопасное извлечение сырого текста
+                    raw_text = getattr(response, "text", None)
+                    if not raw_text and getattr(response, "candidates", None):
+                        for cand in response.candidates:
+                            if getattr(cand, "content", None) and getattr(cand.content, "parts", None):
+                                for part in cand.content.parts:
+                                    if getattr(part, "text", None):
+                                        raw_text = part.text
+                                        break
+                            if raw_text:
+                                break
+
+                    if not raw_text:
+                        raise ValueError(f"Пустой ответ от модели {model_name} (response.text is None)")
+
                     import json
-                    data = json.loads(response.text)
+                    data = json.loads(raw_text)
                     return AdvocateSpeechResult(**data)
                 except Exception as e:
                     logger.warning(f"Адвокат: ошибка модели {model_name}: {e}. Пробуем резерв...")

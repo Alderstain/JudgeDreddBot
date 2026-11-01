@@ -111,8 +111,7 @@ class LLMJudge:
         models_to_try = [
             "gemini-3.8-flash",
             "gemini-3.5-flash-lite",
-            "gemini-3.5-flash",
-            "gemini-3.5-pro"
+            "gemini-3.5-flash"
         ]
 
         last_error = None
@@ -133,8 +132,33 @@ class LLMJudge:
                             temperature=0.3
                         )
                     )
-                    data = json.loads(response.text)
-                    logger.info(f"Успешный ответ от модели {model_name}!")
+
+                    # 1. Если SDK вернул уже распарсенную модель
+                    if getattr(response, "parsed", None):
+                        if isinstance(response.parsed, VerdictResult):
+                            logger.info(f"Успешный ответ от модели {model_name} (parsed)!")
+                            return response.parsed
+                        if isinstance(response.parsed, dict):
+                            logger.info(f"Успешный ответ от модели {model_name} (dict)!")
+                            return VerdictResult(**response.parsed)
+
+                    # 2. Безопасное извлечение сырого текста
+                    raw_text = getattr(response, "text", None)
+                    if not raw_text and getattr(response, "candidates", None):
+                        for cand in response.candidates:
+                            if getattr(cand, "content", None) and getattr(cand.content, "parts", None):
+                                for part in cand.content.parts:
+                                    if getattr(part, "text", None):
+                                        raw_text = part.text
+                                        break
+                            if raw_text:
+                                break
+
+                    if not raw_text:
+                        raise ValueError(f"Пустой ответ от модели {model_name} (response.text is None)")
+
+                    data = json.loads(raw_text)
+                    logger.info(f"Успешный ответ от модели {model_name} (json parsed)!")
                     return VerdictResult(**data)
                 except Exception as e:
                     last_error = e
