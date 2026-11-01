@@ -8,14 +8,20 @@ from src.config import DISCORD_TOKEN, DEV_GUILD_ID
 from src.database import init_db
 from src.llm_judge import LLMJudge
 
-# Настройка логирования в консоль и в файл bot.log
+import os
+
+# Настройка логирования в консоль (stdout) и в файл (если путь не занят директорией)
+log_handlers = [logging.StreamHandler(sys.stdout)]
+if not os.path.isdir("bot.log"):
+    try:
+        log_handlers.append(logging.FileHandler("bot.log", encoding="utf-8"))
+    except Exception:
+        pass
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("bot.log", encoding="utf-8")
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger("JudgeDredd")
 
