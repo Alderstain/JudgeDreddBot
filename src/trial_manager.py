@@ -18,28 +18,6 @@ from src.llm_advocate import LLMAdvocate, AdvocateSpeechResult
 logger = logging.getLogger(__name__)
 
 
-class FinishSpeechView(View):
-    """Интерактивная кнопка для досрочного завершения своей речи."""
-    def __init__(self, allowed_user_id: int, timeout: int = 180):
-        super().__init__(timeout=timeout)
-        self.allowed_user_id = allowed_user_id
-        self.finished = asyncio.Event()
-
-    @discord.ui.button(label="Завершить речь ⚖️", style=discord.ButtonStyle.green)
-    async def finish_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.allowed_user_id:
-            await interaction.response.send_message("Сейчас не ваша очередь говорить!", ephemeral=True)
-            return
-
-        button.disabled = True
-        await interaction.response.edit_message(view=self)
-        self.finished.set()
-        self.stop()
-
-    async def on_timeout(self):
-        self.finished.set()
-
-
 class TrialSession:
     def __init__(
         self,
@@ -169,44 +147,37 @@ class TrialSession:
         await asyncio.sleep(4)
 
     async def _collect_user_statements(self, user: discord.Member, timeout_seconds: int) -> str:
-        """Включает пользователю право писать, собирает его сообщения до нажатия кнопки или истечения таймера."""
+        """Включает пользователю право писать. Как только он отправляет сообщение — фиксирует его и сразу передает ход дальше."""
         await self.channel.set_permissions(user, overwrite=discord.PermissionOverwrite(send_messages=True, view_channel=True))
 
-        view = FinishSpeechView(allowed_user_id=user.id, timeout=timeout_seconds)
         prompt_msg = await self.channel.send(
-            f"🎙️ **{user.mention}**, трибуна ваша! Изложите вашу позицию.\n"
-            f"⏱️ У вас есть **{timeout_seconds // 60} мин. {timeout_seconds % 60} сек.**\n"
-            f"Когда закончите, нажмите кнопку ниже или дождитесь окончания таймера.",
-            view=view
+            f"🎙️ **{user.mention}**, трибуна ваша! Отправьте сообщение с вашей позицией в этот чат.\n"
+            f"⏱️ Время на ответ: **{timeout_seconds // 60} мин. {timeout_seconds % 60} сек.** "
+            f"*(суд продолжит заседание сразу после вашего сообщения)*"
         )
 
-        messages = []
-
         def check(m: discord.Message):
-            return m.author.id == user.id and m.channel.id == self.channel.id
+            return m.author.id == user.id and m.channel.id == self.channel.id and bool(m.content.strip())
 
-        async def message_listener():
-            while not view.finished.is_set():
-                try:
-                    msg = await self.bot.wait_for("message", check=check, timeout=1.0)
-                    messages.append(msg.content)
-                except asyncio.TimeoutError:
-                    continue
+        try:
+            msg = await self.bot.wait_for("message", check=check, timeout=timeout_seconds)
+            speech = msg.content.strip()
+            try:
+                await msg.add_reaction("⚖️")
+            except Exception:
+                pass
+        except asyncio.TimeoutError:
+            speech = "*(Участник промолчал)*"
 
-        listener_task = asyncio.create_task(message_listener())
-
-        await view.finished.wait()
-        listener_task.cancel()
-
+        # Забираем права писать обратно
         await self.channel.set_permissions(user, overwrite=discord.PermissionOverwrite(send_messages=False, view_channel=True))
         
         try:
-            await prompt_msg.edit(content=f"🔒 Время выступления **{user.display_name}** завершено.", view=None)
+            await prompt_msg.edit(content=f"🔒 Показания **{user.display_name}** приобщены к делу.")
         except Exception:
             pass
 
-        full_speech = "\n".join(messages).strip()
-        return full_speech if full_speech else "*(Участник промолчал)*"
+        return speech
 
     async def _run_prosecution_phase(self, timeout_seconds: int):
         phase_embed = discord.Embed(
