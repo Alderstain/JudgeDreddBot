@@ -55,6 +55,29 @@ class AdminCommands(commands.Cog):
             ephemeral=True
         )
 
+    @config_group.command(name="jury", description="Включить или отключить голосование присяжных (зрителей)")
+    @app_commands.describe(enabled="True - включить голосование присяжных, False - отключить")
+    async def set_jury(self, interaction: discord.Interaction, enabled: bool):
+        await update_guild_settings(interaction.guild.id, jury_voting_enabled=1 if enabled else 0)
+        status_text = "включено" if enabled else "отключено"
+        await interaction.response.send_message(
+            f"⚖️ Голосование коллегии присяжных (зрителей) теперь **{status_text}**.",
+            ephemeral=True
+        )
+
+    @config_group.command(name="jury_time", description="Время в секундах, отведенное на голосование присяжных")
+    @app_commands.describe(seconds="Время в секундах (от 15 до 300, по умолчанию 60)")
+    async def set_jury_time(self, interaction: discord.Interaction, seconds: int):
+        if seconds < 15 or seconds > 300:
+            await interaction.response.send_message("❌ Время голосования должно быть от 15 до 300 секунд.", ephemeral=True)
+            return
+
+        await update_guild_settings(interaction.guild.id, jury_voting_duration=seconds)
+        await interaction.response.send_message(
+            f"⏱️ Длительность голосования присяжных установлена на **{seconds} сек.**",
+            ephemeral=True
+        )
+
     @config_group.command(name="view", description="Показать текущие настройки суда на сервере")
     async def view_settings(self, interaction: discord.Interaction):
         settings = await get_guild_settings(interaction.guild.id)
@@ -64,6 +87,9 @@ class AdminCommands(commands.Cog):
             if cat:
                 category_name = cat.name
 
+        jury_enabled = bool(settings.get("jury_voting_enabled", 1))
+        jury_time = settings.get("jury_voting_duration", 60)
+
         embed = discord.Embed(
             title="⚙️ Настройки судебной системы Дредда",
             color=discord.Color.blue()
@@ -71,6 +97,8 @@ class AdminCommands(commands.Cog):
         embed.add_field(name="Порог жалоб (X)", value=str(settings.get("report_threshold", 3)), inline=True)
         embed.add_field(name="Время на речь", value=f"{settings.get('statement_timeout', 180)} сек.", inline=True)
         embed.add_field(name="Категория судов", value=category_name, inline=False)
+        embed.add_field(name="Голосование присяжных", value="✅ Включено" if jury_enabled else "❌ Отключено", inline=True)
+        embed.add_field(name="Время голосования", value=f"{jury_time} сек.", inline=True)
         embed.set_footer(text="Изменить настройки можно командами /judge-config <параметр>")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
