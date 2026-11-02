@@ -33,7 +33,9 @@ async def init_db():
                 report_threshold INTEGER DEFAULT 3,
                 court_category_id INTEGER DEFAULT NULL,
                 statement_timeout INTEGER DEFAULT 180,
-                auto_timeout_minutes INTEGER DEFAULT 60
+                auto_timeout_minutes INTEGER DEFAULT 60,
+                jury_voting_enabled INTEGER DEFAULT 1,
+                jury_voting_duration INTEGER DEFAULT 60
             )
         """)
 
@@ -77,6 +79,17 @@ async def init_db():
         except sqlite3.OperationalError:
             pass
 
+        # Мягкая миграция для jury voting
+        try:
+            await db.execute("ALTER TABLE guild_settings ADD COLUMN jury_voting_enabled INTEGER DEFAULT 1")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            await db.execute("ALTER TABLE guild_settings ADD COLUMN jury_voting_duration INTEGER DEFAULT 60")
+        except sqlite3.OperationalError:
+            pass
+
         await db.commit()
 
 
@@ -99,7 +112,9 @@ async def get_guild_settings(guild_id: int) -> Dict[str, Any]:
                 "report_threshold": 3,
                 "court_category_id": None,
                 "statement_timeout": 180,
-                "auto_timeout_minutes": 60
+                "auto_timeout_minutes": 60,
+                "jury_voting_enabled": 1,
+                "jury_voting_duration": 60
             }
 
 
